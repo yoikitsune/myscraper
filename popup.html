@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 16px;
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 12px 0;
+      color: #333;
+    }
+    #status {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+    #status.supported {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    #status.unsupported {
+      background: #ffebee;
+      color: #c62828;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 4px 0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: opacity 0.2s;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    #extractBtn {
+      background: #1976d2;
+      color: white;
+    }
+    #extractBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #copyBtn {
+      background: #388e3c;
+      color: white;
+      display: none;
+    }
+    #downloadBtn {
+      background: #f57c00;
+      color: white;
+      display: none;
+    }
+    #preview {
+      margin-top: 12px;
+      padding: 8px;
+      background: #f5f5f5;
+      border-radius: 4px;
+      font-size: 12px;
+      max-height: 150px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      display: none;
+    }
+    .config-section {
+      margin: 12px 0;
+      padding: 10px;
+      background: #fafafa;
+      border-radius: 4px;
+      border: 1px solid #e0e0e0;
+    }
+    .config-section h3 {
+      font-size: 12px;
+      margin: 0 0 8px 0;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .config-row {
+      display: flex;
+      align-items: center;
+      margin: 6px 0;
+      font-size: 13px;
+    }
+    .config-row label {
+      flex: 1;
+      color: #333;
+    }
+    .config-row input[type="text"] {
+      flex: 1.5;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+    .config-row input[type="checkbox"] {
+      margin-left: 8px;
+      cursor: pointer;
+    }
+    .config-instructions {
+      margin-top: 10px;
+      padding: 8px;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #856404;
+    }
+    .error {
+      color: #c62828;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Conversation Extractor</h1>
+  <div id="status">Analyse du site...</div>
+  
+  <div class="config-section">
+    <h3>Configuration</h3>
+    <div class="config-row">
+      <label for="username">Nom utilisateur:</label>
+      <input type="text" id="username" placeholder="Utilisateur" value="Utilisateur">
+    </div>
+    <div id="sourcesOption" class="config-row" style="display: none;">
+      <label for="includeSources">Inclure les sources</label>
+      <input type="checkbox" id="includeSources">
+    </div>
+    <div id="thoughtProcessOption" class="config-row" style="display: none;">
+      <label for="includeThoughtProcess">Inclure le Thought Process</label>
+      <input type="checkbox" id="includeThoughtProcess">
+    </div>
+    <div id="siteInstructions" class="config-instructions" style="display: none;"></div>
+  </div>
+  
+  <button id="extractBtn" disabled>Extraire la conversation</button>
+  <button id="copyBtn">Copier le Markdown</button>
+  <button id="downloadBtn">Télécharger .md</button>
+  <div id="preview"></div>
+  <div id="error" class="error"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
