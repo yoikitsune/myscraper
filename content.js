@@ -249,21 +249,21 @@ class ZaiParser {
   async extract() {
     const messages = [];
 
-    // Auto-click all Sources buttons to open sidebars
-    this.openAllSourcesPanels();
-
-    // Wait for sidebars to open (they load asynchronously)
-    await this.waitForSidebars(2000);
+    // Find all Sources buttons globally
+    const allButtons = Array.from(document.querySelectorAll('button'));
+    const sourcesButtons = allButtons.filter(btn => 
+      btn.textContent?.trim() === 'Sources' || btn.textContent?.includes('Sources')
+    );
+    console.log(`[ZaiParser] Found ${sourcesButtons.length} Sources buttons globally`);
 
     // Find all message containers
     // User messages: .user-message container with .chat-user content
     // Assistant messages: [class*="message-"] container with .chat-assistant content
     const allMessages = document.querySelectorAll('.user-message, div[class*="message-"]');
 
-    // Extract sources from sidebar (now open)
-    const sidebarSources = this.extractSidebarSources();
-
-    allMessages.forEach((el, index) => {
+    let assistantIndex = 0; // Track assistant messages to match with Sources buttons
+    for (let index = 0; index < allMessages.length; index++) {
+      const el = allMessages[index];
       const isUser = el.classList.contains('user-message');
 
       // Get content from inner containers
@@ -288,25 +288,42 @@ class ZaiParser {
           // Parse assistant message BEFORE cleaning to preserve structure
           const parsed = this.parseAssistantMessage(rawContent);
 
-          // Keep citation IDs per message, URLs will be in allSources
+          // For assistant messages, extract sources from corresponding Sources button
+          let msgSources = [];
+          if (assistantIndex < sourcesButtons.length) {
+            const sourcesBtn = sourcesButtons[assistantIndex];
+            console.log(`[ZaiParser] Assistant message ${assistantIndex}: Clicking Sources button...`);
+            sourcesBtn.click();
+            // Wait for sidebar to load
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            msgSources = this.extractSidebarSources();
+            console.log(`[ZaiParser] Assistant message ${assistantIndex}: Extracted ${msgSources.length} sources`);
+            
+            // Close sidebar
+            sourcesBtn.click();
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          assistantIndex++;
+
           messages.push({
             role: 'assistant',
             content: parsed.mainContent,
             thoughtProcess: parsed.thoughtProcess,
-            sources: parsed.sources, // Just citation IDs like turn0search5
+            sources: parsed.sources,
+            sidebarSources: msgSources.length > 0 ? msgSources : undefined,
             index: index
           });
         }
       }
-    });
+    }
 
     return {
       site: this.name,
       url: window.location.href,
       title: document.title,
       date: new Date().toISOString(),
-      messages: messages,
-      allSources: sidebarSources.length > 0 ? sidebarSources : undefined
+      messages: messages
     };
   }
 
@@ -371,6 +388,8 @@ class ZaiParser {
       return sources; // Sidebar not open
     }
 
+    console.log('[ZaiParser] References sidebar found, extracting links...');
+
     // Find all source links in the sidebar
     // They are typically links with favicon and structured content
     const allLinks = document.querySelectorAll('a[href^="http"]');
@@ -404,6 +423,7 @@ class ZaiParser {
       }
     });
 
+    console.log(`[ZaiParser] Extracted ${sources.length} sources from sidebar`);
     return sources;
   }
 
@@ -419,19 +439,6 @@ class ZaiParser {
       const citation = match[1];
       if (!sources.find(s => s.id === citation)) {
         sources.push({ id: citation, label: citation });
-      }
-    }
-
-    // Also extract inline source references (e.g., "chromewebstore.google", "github", etc.)
-    // These appear in the second and subsequent messages
-    const inlineSourceRegex = /(?:^|\s)(chromewebstore\.google|github|reddit|stackoverflow|youtube|chatgptexporter|tomforth|outscraper|community\.make|facebook|clay|data-bird|sortlist|fortinet)(?:\s|$|\.)/gi;
-    let inlineMatch;
-    while ((inlineMatch = inlineSourceRegex.exec(content)) !== null) {
-      const sourceName = inlineMatch[1].toLowerCase();
-      // Generate a pseudo-ID for inline sources
-      const pseudoId = `inline_${sourceName}_${inlineMatch.index}`;
-      if (!sources.find(s => s.id === pseudoId)) {
-        sources.push({ id: pseudoId, label: sourceName, isInline: true });
       }
     }
 
@@ -469,43 +476,18 @@ class ZaiParser {
     md += `**Date**: ${data.date}\n\n`;
     md += `---\n\n`;
 
-    // Build mapping of citations to URLs with proper handling for duplicates
-    const allSources = data.allSources || [];
+    // Build mapping of citations to URLs per message
     const citationToUrl = new Map();
     
-    // Create queues for each source type to handle duplicates
-    const sourceQueues = new Map();
-    allSources.forEach(source => {
-      if (source.source) {
-        const key = source.source.toLowerCase();
-        if (!sourceQueues.has(key)) {
-          sourceQueues.set(key, []);
-        }
-        sourceQueues.get(key).push(source);
-      }
-    });
-    
-    // Track which inline sources we've used per type
-    const usedCounts = new Map();
-
-    let sourceIndex = 0;
+    // Map 【】citations to URLs from each message's sidebarSources
     data.messages.forEach((msg) => {
-      if (msg.role === 'assistant' && msg.sources) {
+      if (msg.role === 'assistant' && msg.sources && msg.sidebarSources) {
+        // Map citations to this message's sources by order
+        let sourceIndex = 0;
         msg.sources.forEach((source) => {
-          if (source.id && !citationToUrl.has(source.id)) {
-            if (!source.isInline && sourceIndex < allSources.length) {
-              // Regular citation - map by order
-              citationToUrl.set(source.id, allSources[sourceIndex]);
-              sourceIndex++;
-            } else if (source.isInline) {
-              // Inline source - get next available URL for this source type
-              const queue = sourceQueues.get(source.label.toLowerCase()) || [];
-              const usedCount = usedCounts.get(source.label.toLowerCase()) || 0;
-              if (usedCount < queue.length) {
-                citationToUrl.set(source.id, queue[usedCount]);
-                usedCounts.set(source.label.toLowerCase(), usedCount + 1);
-              }
-            }
+          if (source.id && !citationToUrl.has(source.id) && sourceIndex < msg.sidebarSources.length) {
+            citationToUrl.set(source.id, msg.sidebarSources[sourceIndex]);
+            sourceIndex++;
           }
         });
       }
@@ -526,15 +508,11 @@ class ZaiParser {
         md += `${msg.content}\n\n`;
 
         // Include sources with URLs if available
-        if (includeSources && msg.sources && msg.sources.length > 0) {
+        if (includeSources && msg.sidebarSources) {
           md += `### Sources\n\n`;
-          msg.sources.forEach((source, idx) => {
-            const mappedSource = citationToUrl.get(source.id);
-            if (mappedSource) {
-              md += `${idx + 1}. [${mappedSource.title || mappedSource.source}](${mappedSource.url})\n`;
-            } else {
-              md += `${idx + 1}. ${source.id || source.label}\n`;
-            }
+          // Display ALL extracted sources, not just those mapped to citations
+          msg.sidebarSources.forEach((source, idx) => {
+            md += `${idx + 1}. [${source.title || source.source}](${source.url})\n`;
           });
           md += `\n`;
         }
