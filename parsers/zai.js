@@ -277,6 +277,4 @@ class ZaiParser {
 }
 
 // Export for use in content script
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ZaiParser;
-}
+export { ZaiParser };

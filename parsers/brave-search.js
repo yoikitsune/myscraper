@@ -229,6 +229,4 @@ class BraveSearchParser {
 }
 
 // Export for use in content script
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = BraveSearchParser;
-}
+export { BraveSearchParser };
